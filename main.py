@@ -6,6 +6,9 @@ from routers.sentiment import router as sentiment_router
 from db.database import Base, engine
 import db.models
 
+from routers import sentiment
+app.include_router(sentiment.router)
+
 load_dotenv()
 
 # Create database tables
