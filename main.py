@@ -7,7 +7,6 @@ from db.database import Base, engine
 import db.models
 
 from routers import sentiment
-app.include_router(sentiment.router)
 
 load_dotenv()
 
@@ -16,6 +15,8 @@ Base.metadata.create_all(bind=engine)
 
 # Initialize FastAPI app
 app = FastAPI()
+
+app.include_router(sentiment.router)
 
 # Enable CORS (adjust allow_origins for production if needed)
 app.add_middleware(
