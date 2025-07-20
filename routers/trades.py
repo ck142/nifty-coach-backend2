@@ -1,35 +1,52 @@
 from fastapi import APIRouter
-from db.database import get_db_connection
+from db.database import SessionLocal
+from db.models import Trade
 from utils.dhan_api import fetch_trades
+from sqlalchemy.exc import IntegrityError
 from datetime import datetime
 
 router = APIRouter()
 
 @router.post("/sync_trades")
 def sync_trades():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    trades = fetch_trades()
-
-    new_trades = 0
-    for trade in trades:
-        try:
-            cursor.execute(
-                "INSERT INTO trades (order_id, symbol, side, qty, price, timestamp) VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (order_id) DO NOTHING",
-                (
-                    trade["order_id"],
-                    trade["symbol"],
-                    trade["side"],
-                    trade["qty"],
-                    trade["price"],
-                    trade["timestamp"]
-                )
+    db = SessionLocal()
+    new_count = 0
+    try:
+        trades = fetch_trades()
+        for trade in trades:
+            new_trade = Trade(
+                order_id=trade["order_id"],
+                symbol=trade["symbol"],
+                side=trade["side"],
+                qty=trade["qty"],
+                price=trade["price"],
+                timestamp=trade.get("timestamp", datetime.utcnow())
             )
-            new_trades += 1
-        except Exception as e:
-            print("Error inserting trade:", e)
+            db.add(new_trade)
+            try:
+                db.commit()
+                new_count += 1
+            except IntegrityError:
+                db.rollback()  # order_id already exists
+        return {"message": f"Synced {new_count} new trades", "trades": trades}
+    finally:
+        db.close()
 
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return {"message": f"Synced {new_trades} new trades", "trades": trades}
+@router.get("/get_trades")
+def get_trades():
+    db = SessionLocal()
+    try:
+        trades = db.query(Trade).order_by(Trade.timestamp.desc()).limit(500).all()
+        return [
+            {
+                "order_id": t.order_id,
+                "symbol": t.symbol,
+                "side": t.side,
+                "qty": t.qty,
+                "price": t.price,
+                "timestamp": t.timestamp
+            }
+            for t in trades
+        ]
+    finally:
+        db.close()
