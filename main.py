@@ -1,20 +1,33 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import trades, sentiment
+from dotenv import load_dotenv
+from routers.trades import router as trades_router
+from routers.sentiment import router as sentiment_router
+from db.database import Base, engine
+import db.models
 
+load_dotenv()
+
+# Create database tables
+Base.metadata.create_all(bind=engine)
+
+# Initialize FastAPI app
 app = FastAPI()
 
+# Enable CORS (adjust allow_origins for production if needed)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Update this with frontend URL in prod
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(trades.router)
-app.include_router(sentiment.router)
+# Include routers
+app.include_router(trades_router)
+app.include_router(sentiment_router)
 
-@app.get("/")
-def root():
-    return {"message": "Nifty Coach Backend running"}
+# Health check endpoint
+@app.get("/ping")
+def ping():
+    return {"message": "pong"}
